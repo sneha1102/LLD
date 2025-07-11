@@ -2,5 +2,12 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Parking Lot/ParkingLot" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ParkingGarageSystem" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ParkingGarageSystem/ParkingGarageSystem" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/SnakeAndLadderGame/SnakeAndLadderGame" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Splitwise/Splitwise" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/VersionControlService" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/VersionControlService/VersionControlService" vcs="Git" />
   </component>
 </project>
