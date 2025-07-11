@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="GymChain" default="run" basedir=".">
+    
+    <property name="src.dir" value="src/main/java"/>
+    <property name="build.dir" value="out/production/GymChain"/>
+    <property name="main.class" value="main.java.DriverClass"/>
+    
+    <target name="clean">
+        <delete dir="${build.dir}"/>
+    </target>
+    
+    <target name="compile" depends="clean">
+        <mkdir dir="${build.dir}"/>
+        <javac srcdir="${src.dir}" destdir="${build.dir}" includeantruntime="false">
+            <include name="**/*.java"/>
+        </javac>
+    </target>
+    
+    <target name="run" depends="compile">
+        <java classname="${main.class}" classpath="${build.dir}"/>
+    </target>
+    
+</project> 
