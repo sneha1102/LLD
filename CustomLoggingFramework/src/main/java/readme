@@ -1,0 +1,53 @@
+Requirements :
+
+- Log levels : Should be able to log different category of logs like Info, Error, and Debug.
+- Multiple outputs: Should be able to write logs in various destinations like Console, File, and Database.
+- Configurable: Should provide flexibility to add/remove logging levels and destinations.
+
+
+Design Pattern Used:
+- Singleton Pattern: To ensure there is only one instance of logging throughout the application.
+- Chain of Responsibility (CoR) : CoR will be used to pass or delegate the message through a chain of handlers for 
+filtering and processing.
+- Observer Pattern: To write in different destinations. As soon as we have something to write we notify all the 
+relevant destinations to log the message. In simple terms, to braodcast log message to multiple destinations.
+
+
+Entities:-
+1. LogLevel : A enum value of log levels. 
+2. LoggerHandle: An abstract class to define the chain of handlers. Here, we can see one logger process the message
+and pass the message to another logger.
+
+It’s concrete classes will be
+
+InfoLogger: Log the Info logs.
+ErrorLogger: Log the Error logs.
+DebugLogger: Log the Debug logs.
+
+3. Logger : The main class which is exposed to the application. The application will call the info, error or debug method
+of the class to log the respective message. I have made the class singleton so that at any given time we have only one 
+instance of the logger.
+4. LogManager: It handles the chaining and all all the observer/destination for a specific log level. I have internally 
+implemented the handler chaining and adding of observer/destinations. We can also modify the code to use the dynamic chaining 
+and dynamic addition of the destinations.
+5. LogObserver: An interface which defines the log method. We will notify all the observer via this log method.
+6. LogSinkSubject: This class contains the method for adding more observers and also notify all the observers about a log message.
+
+Some of the observer are
+
+FileLogger: log the message in a file.
+ConsoleLogger: log the message in a console.
+DatabaseLogger: log the message in a Database.
+7. LoggerApplication
+
+
+Workflow will be like:
+
+1. Logger acts a starting point for the application. With the help of Logger class, we create an instance of the logger and using the 
+instance we call the info, error or debug method to log the message.
+2. Log message are pass through the handlers and then proceed to the destinations.
+3. Each handler processed the logs based on the level condition and notify all its observer or destinations and then passed it to
+the next handler for processing.
+
+
+More info - https://medium.com/@say2ankitgupta/low-level-design-of-logging-framework-ffaae7c701ee
