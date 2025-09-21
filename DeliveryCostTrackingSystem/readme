@@ -1,0 +1,356 @@
+Design a system that tracks delivery costs for various orders based on parameters like distance, weight, delivery type, etc.
+
+Requirements (Functional)
+
+Add new delivery
+
+Calculate delivery cost based on rules (distance, weight, speed, etc.)
+
+Update delivery status
+
+Retrieve cost details per delivery
+
+Generate reports (optional/extended)
+
+
+
+public enum DeliveryType {
+    STANDARD,
+    EXPRESS,
+    SAME_DAY
+}
+
+
+public enum DeliveryStatus {
+    PENDING,
+    IN_TRANSIT,
+    DELIVERED,
+    CANCELLED
+}
+
+
+public interface DeliveryObserver {
+    void onDeliveryStatusChanged(Delivery delivery);
+}
+
+
+public interface DeliverySubject {
+    void addObserver(DeliveryObserver observer);
+    void removeObserver(DeliveryObserver observer);
+    void notifyObservers();
+}
+
+public class Delivery implements DeliverySubject {
+    private String deliveryId;
+    private String source;
+    private String destination;
+    private double distance;
+    private double weight;
+    private DeliveryType deliveryType;
+    private DeliveryStatus status;
+    private double cost;
+    private LocalDateTime createdAt;
+
+    public String getDeliveryId() {
+        return deliveryId;
+    }
+
+    public void setDeliveryId(String deliveryId) {
+        this.deliveryId = deliveryId;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public String getDestination() {
+        return destination;
+    }
+
+    public void setDestination(String destination) {
+        this.destination = destination;
+    }
+
+    public double getDistance() {
+        return distance;
+    }
+
+    public void setDistance(double distance) {
+        this.distance = distance;
+    }
+
+    public double getWeight() {
+        return weight;
+    }
+
+    public void setWeight(double weight) {
+        this.weight = weight;
+    }
+
+    public DeliveryType getDeliveryType() {
+        return deliveryType;
+    }
+
+    public void setDeliveryType(DeliveryType deliveryType) {
+        this.deliveryType = deliveryType;
+    }
+
+    public double getCost() {
+        return cost;
+    }
+
+    public void setCost(double cost) {
+        this.cost = cost;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public List<DeliveryObserver> getObservers() {
+        return observers;
+    }
+
+    public void setObservers(List<DeliveryObserver> observers) {
+        this.observers = observers;
+    }
+
+    private List<DeliveryObserver> observers = new ArrayList<>();
+
+    // Constructors, Getters, Setters
+
+    public void setStatus(DeliveryStatus status) {
+        this.status = status;
+        notifyObservers(); // Notify all observers on status change
+    }
+
+    public DeliveryStatus getStatus() {
+        return status;
+    }
+
+    @Override
+    public void addObserver(DeliveryObserver observer) {
+        observers.add(observer);
+    }
+
+    @Override
+    public void removeObserver(DeliveryObserver observer) {
+        observers.remove(observer);
+    }
+
+    @Override
+    public void notifyObservers() {
+        for (DeliveryObserver observer : observers) {
+            observer.onDeliveryStatusChanged(this);
+        }
+    }
+
+}
+
+
+public class EmailNotifier implements DeliveryObserver {
+    @Override
+    public void onDeliveryStatusChanged(Delivery delivery) {
+        System.out.println("[EMAIL] Delivery " + delivery.getDeliveryId() +
+                " status changed to: " + delivery.getStatus());
+    }
+}
+
+public class SMSNotifier implements DeliveryObserver {
+    @Override
+    public void onDeliveryStatusChanged(Delivery delivery) {
+        System.out.println("[SMS] Delivery " + delivery.getDeliveryId() +
+                " status changed to: " + delivery.getStatus());
+    }
+}
+
+public class DashboardUpdater implements DeliveryObserver {
+    @Override
+    public void onDeliveryStatusChanged(Delivery delivery) {
+        System.out.println("[DASHBOARD] Updated delivery " + delivery.getDeliveryId() +
+                " status to: " + delivery.getStatus());
+    }
+}
+
+
+public class DeliveryBuilder {
+    private String source;
+    private String destination;
+    private double distance;
+    private double weight;
+    private DeliveryType type;
+
+    private List<DeliveryObserver> observers = new ArrayList<>();
+
+    public DeliveryBuilder setSource(String source) {
+        this.source = source;
+        return this;
+    }
+
+    public DeliveryBuilder setDestination(String destination) {
+        this.destination = destination;
+        return this;
+    }
+
+    public DeliveryBuilder setDistance(double distance) {
+        this.distance = distance;
+        return this;
+    }
+
+    public DeliveryBuilder setWeight(double weight) {
+        this.weight = weight;
+        return this;
+    }
+
+    public DeliveryBuilder setDeliveryType(DeliveryType type) {
+        this.type = type;
+        return this;
+    }
+
+    public DeliveryBuilder addObserver(DeliveryObserver observer) {
+        this.observers.add(observer);
+        return this;
+    }
+
+    public Delivery build() {
+        Delivery delivery = new Delivery();
+        delivery.setDeliveryId(UUID.randomUUID().toString());
+        delivery.setSource(source);
+        delivery.setDestination(destination);
+        delivery.setDistance(distance);
+        delivery.setWeight(weight);
+        delivery.setDeliveryType(type);
+        delivery.setStatus(DeliveryStatus.PENDING);
+        delivery.setCreatedAt(LocalDateTime.now());
+        for (DeliveryObserver observer : observers) {
+            delivery.addObserver(observer);
+        }
+        return delivery;
+    }
+}
+
+
+public interface CostStrategy {
+    double calculateCost(Delivery delivery);
+}
+
+public class StandardCostStrategy implements CostStrategy {
+    public double calculateCost(Delivery delivery) {
+        return 5.0 + delivery.getDistance() * 2.0 + delivery.getWeight() * 1.5;
+    }
+}
+
+public class ExpressCostStrategy implements CostStrategy {
+    public double calculateCost(Delivery delivery) {
+        return (5.0 + delivery.getDistance() * 2.0 + delivery.getWeight() * 1.5) * 1.5;
+    }
+}
+
+public class SameDayCostStrategy implements CostStrategy {
+    public double calculateCost(Delivery delivery) {
+        return (5.0 + delivery.getDistance() * 2.0 + delivery.getWeight() * 1.5) * 2.0;
+    }
+}
+
+public class CostStrategyFactory {
+    public static CostStrategy getStrategy(DeliveryType type) {
+        switch (type) {
+            case EXPRESS: return new ExpressCostStrategy();
+            case SAME_DAY: return new SameDayCostStrategy();
+            default: return new StandardCostStrategy();
+        }
+    }
+}
+
+
+import java.util.*;
+
+public class DeliveryService {
+    private Map<String, Delivery> deliveries = new HashMap<>();
+
+    public Delivery createDelivery(String source, String destination, double distance, double weight, DeliveryType type, List<DeliveryObserver> observers) {
+        DeliveryBuilder builder = new DeliveryBuilder()
+                .setSource(source)
+                .setDestination(destination)
+                .setDistance(distance)
+                .setWeight(weight)
+                .setDeliveryType(type);
+
+        for (DeliveryObserver observer : observers) {
+            builder.addObserver(observer);
+        }
+
+        Delivery delivery = builder.build();
+
+        CostStrategy strategy = CostStrategyFactory.getStrategy(type);
+        double cost = strategy.calculateCost(delivery);
+        delivery.setCost(cost);
+
+        deliveries.put(delivery.getDeliveryId(), delivery);
+        return delivery;
+    }
+
+    public void updateStatus(String deliveryId, DeliveryStatus newStatus) {
+        Delivery delivery = deliveries.get(deliveryId);
+        if (delivery != null) {
+            delivery.setStatus(newStatus); // Will trigger notifyObservers()
+        }
+    }
+
+    public Delivery getDelivery(String deliveryId) {
+        return deliveries.get(deliveryId);
+    }
+
+    public List<Delivery> getAllDeliveries() {
+        return new ArrayList<>(deliveries.values());
+    }
+}
+
+
+import java.util.Arrays;
+import java.util.List;
+
+public class Main {
+    public static void main(String[] args) {
+        DeliveryObserver emailNotifier = new EmailNotifier();
+        DeliveryObserver smsNotifier = new SMSNotifier();
+        DeliveryObserver dashboardUpdater = new DashboardUpdater();
+
+        List<DeliveryObserver> observers = Arrays.asList(emailNotifier, smsNotifier, dashboardUpdater);
+
+        DeliveryService service = new DeliveryService();
+
+        Delivery delivery = service.createDelivery(
+                "Delhi", "Chandigarh",
+                250.0, 8.0,
+                DeliveryType.EXPRESS,
+                observers
+        );
+
+        System.out.println("Created delivery with cost: ₹" + delivery.getCost());
+
+        System.out.println("\n--- Changing status to IN_TRANSIT ---");
+        service.updateStatus(delivery.getDeliveryId(), DeliveryStatus.IN_TRANSIT);
+
+        System.out.println("\n--- Changing status to DELIVERED ---");
+        service.updateStatus(delivery.getDeliveryId(), DeliveryStatus.DELIVERED);
+    }
+}
+
+
+Design Pattern used:-
+| Pattern      | Where Used                                |
+| ------------ | ----------------------------------------- |
+| **Strategy** | Cost calculation via `CostStrategy`       |
+| **Factory**  | To get appropriate cost strategy          |
+| **Builder**  | For clean `Delivery` object construction  |
+| **Observer** | Notify systems on delivery status changes |
+
