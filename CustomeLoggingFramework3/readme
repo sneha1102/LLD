@@ -1,0 +1,276 @@
+Requirements
+
+Logging Support for Multiple Levels:
+The system must support logging at different levels such as INFO, DEBUG, and ERROR.
+
+Multiple Output Sinks:
+Logs can be sent to various outputs such as console, file, and database.
+
+Dynamic Configuration:
+The application should allow adding or removing logging sinks dynamically for specific log levels.
+
+Prevent Duplicate Sink Registrations:
+The same sink should not be registered more than once for the same log level.
+
+Singleton Logger Instance:
+There should be only one global logger instance shared across the application.
+
+Simple API for Logging:
+Easy-to-use methods such as info(), debug(), and error() for client code.
+
+
+Entities
+
+LogLevel (Enum):
+Represents the severity of the logs — INFO, DEBUG, and ERROR.
+
+SinkType (Enum):
+Represents the type of output sink — CONSOLE, FILE, DATABASE.
+
+LogObserver (Interface):
+Observer interface for different sinks. Each sink implements a log(String message) method.
+
+ConsoleLogger, FileLogger, DataBaseLogger (Concrete Observers):
+Implementations of LogObserver for respective sinks.
+
+LogSinkSubject (Subject):
+Manages the observers (sinks) for each log level. Notifies appropriate sinks when a log event happens.
+
+LogManager:
+Helps with creating observers/sinks and adding them to LogSinkSubject.
+
+Logger (Singleton):
+Central logging class, responsible for formatting and sending logs to the right sinks based on the log level.
+
+
+
+Design Patterns Used and Why
+1. Singleton Pattern (Logger class)
+
+Why:
+Ensures there is only one instance of the logger throughout the application lifecycle.
+Provides a global access point to the logger instance.
+Thread-safe double-checked locking guarantees safe initialization in multi-threaded environments.
+
+2. Observer Pattern (LogSinkSubject and LogObserver)
+
+Why:
+Decouples the log event source (Logger) from the log output sinks.
+Allows multiple sinks (observers) to register and be notified independently when a log event occurs.
+Makes it easy to add or remove sinks dynamically without changing the core logger logic.
+Facilitates managing sinks per log level separately.
+
+
+
+
+public enum LogLevel {
+    INFO, DEBUG, ERROR
+}
+
+
+public enum SinkType {
+    CONSOLE, FILE, DATABASE
+}
+
+public interface LogObserver {
+    void log(String message);
+}
+
+public class ConsoleLogger implements LogObserver {
+    @Override
+    public void log(String message) {
+        System.out.println("Console: " + message);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return obj != null && this.getClass() == obj.getClass();
+    }
+
+    @Override
+    public int hashCode() {
+        return this.getClass().hashCode();
+    }
+}
+
+
+public class FileLogger implements LogObserver {
+    @Override
+    public void log(String message) {
+        System.out.println("File: " + message);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return obj != null && this.getClass() == obj.getClass();
+    }
+
+    @Override
+    public int hashCode() {
+        return this.getClass().hashCode();
+    }
+}
+
+
+public class DataBaseLogger implements LogObserver {
+    @Override
+    public void log(String message) {
+        System.out.println("Database: " + message);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return obj != null && this.getClass() == obj.getClass();
+    }
+
+    @Override
+    public int hashCode() {
+        return this.getClass().hashCode();
+    }
+}
+
+
+import java.util.*;
+
+public class LogSinkSubject {
+    private final Map<LogLevel, List<LogObserver>> observers = new HashMap<>();
+
+    public void addObserver(LogLevel level, LogObserver logObserver) {
+        List<LogObserver> logObservers = observers.getOrDefault(level, new ArrayList<>());
+
+        if (!logObservers.contains(logObserver)) {
+            logObservers.add(logObserver);
+            observers.put(level, logObservers);
+            System.out.println("Added observer: " + logObserver.getClass().getSimpleName() + " for level: " + level);
+        } else {
+            System.out.println("Observer already exists for level: " + level);
+        }
+    }
+
+    public void notifyObservers(LogLevel level, String message) {
+        List<LogObserver> logObservers = observers.get(level);
+        if (logObservers != null) {
+            for (LogObserver observer : logObservers) {
+                observer.log(message);
+            }
+        }
+    }
+}
+
+
+public class LogManager {
+    public static LogSinkSubject buildLogSinkSubject(LogLevel logLevel, SinkType sinkType, LogSinkSubject logSinkSubject) {
+        switch (sinkType) {
+            case CONSOLE -> logSinkSubject.addObserver(logLevel, new ConsoleLogger());
+            case FILE -> logSinkSubject.addObserver(logLevel, new FileLogger());
+            case DATABASE -> logSinkSubject.addObserver(logLevel, new DataBaseLogger());
+            default -> throw new IllegalArgumentException("Invalid SinkType");
+        }
+        return logSinkSubject;
+    }
+}
+
+
+public class Logger {
+    private static volatile Logger loggerInstance;
+    private static volatile LogSinkSubject logSinkSubject;
+
+    private Logger() {
+        logSinkSubject = new LogSinkSubject();
+    }
+
+    public static Logger getLoggerInstance() {
+        if (loggerInstance == null) {
+            synchronized (Logger.class) {
+                if (loggerInstance == null) {
+                    loggerInstance = new Logger();
+                }
+            }
+        }
+        return loggerInstance;
+    }
+
+    public void addLogSinkSubject(LogLevel logLevel, SinkType sinkType) {
+        logSinkSubject = LogManager.buildLogSinkSubject(logLevel, sinkType, logSinkSubject);
+    }
+
+    private void log(LogLevel level, String message) {
+        String formattedMessage = switch (level) {
+            case INFO -> "INFO: " + message;
+            case DEBUG -> "DEBUG: " + message;
+            case ERROR -> "ERROR: " + message;
+        };
+
+        logSinkSubject.notifyObservers(level, formattedMessage);
+    }
+
+    // Exposed methods for convenience
+    public void info(String message) {
+        log(LogLevel.INFO, message);
+    }
+
+    public void debug(String message) {
+        log(LogLevel.DEBUG, message);
+    }
+
+    public void error(String message) {
+        log(LogLevel.ERROR, message);
+    }
+}
+
+
+public class LoggerApplication {
+    public static void main(String[] args) {
+        Logger logger = Logger.getLoggerInstance();
+
+        // Add sinks
+        logger.addLogSinkSubject(LogLevel.INFO, SinkType.CONSOLE);
+        logger.addLogSinkSubject(LogLevel.INFO, SinkType.FILE);
+        logger.addLogSinkSubject(LogLevel.ERROR, SinkType.DATABASE);
+        logger.addLogSinkSubject(LogLevel.DEBUG, SinkType.CONSOLE);
+
+        // Log messages
+        logger.info("Application started.");
+        logger.error("An error occurred.");
+        logger.debug("Debugging application.");
+        
+        // Trying to add duplicate sinks (won't add)
+        logger.addLogSinkSubject(LogLevel.INFO, SinkType.CONSOLE);
+    }
+}
+
+
+
+WHEN USED BY MULTIPLE APPLICATIONS
+
+Suggested Code-Level Changes
+
+Change Logger to a regular class, instantiated per application:
+
+public class Logger {
+    private final LogSinkSubject logSinkSubject;
+
+    public Logger() {
+        this.logSinkSubject = new LogSinkSubject();
+    }
+
+    // Configuration methods and logging methods remain similar
+}
+
+
+Add a LoggerFactory or LoggerManager to create/get logger instances:
+
+public class LoggerFactory {
+    private static final Map<String, Logger> loggers = new ConcurrentHashMap<>();
+
+    public static Logger getLogger(String appId) {
+        return loggers.computeIfAbsent(appId, id -> new Logger());
+    }
+}
+
+
+Client code obtains logger by appId:
+
+Logger appLogger = LoggerFactory.getLogger("MyApp");
+appLogger.addLogSinkSubject(LogLevel.INFO, SinkType.CONSOLE);
+appLogger.info("App started.");
