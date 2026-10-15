@@ -1,0 +1,264 @@
+1. Functional requirements
+
+1. Create a policy with a keyword and scoped users.
+2. Update a policy to change its keyword, users, or enabled status.
+3. Delete a policy to stop future matching.
+4. Evaluate Teams messages against enabled policies applicable to the sender.
+5. Create a policy hit for each matching policy.
+6. Retrieve historical hits, including the complete message that caused each hit.
+
+Assumptions: English-only demo with English-default runtime settings, in-memory storage, single-threaded execution, and each message evaluated once. Updates affect future evaluations; deleting a policy does not delete historical hits.
+
+2. Entities
+
+┌───────────────────┬──────────────────────────────────────────────────────────────┐
+│ Entity            │ Responsibility                                               │
+├───────────────────┼──────────────────────────────────────────────────────────────┤
+│ Policy            │ Stores the keyword, scoped users, and enabled status         │
+├───────────────────┼──────────────────────────────────────────────────────────────┤
+│ TeamsMessage      │ Stores message ID, sender, and complete content              │
+├───────────────────┼──────────────────────────────────────────────────────────────┤
+│ PolicyHit         │ Stores the matching policy ID, keyword, and complete message │
+├───────────────────┼──────────────────────────────────────────────────────────────┤
+│ ComplianceService │ Manages policies, evaluates messages, and retrieves hits     │
+└───────────────────┴──────────────────────────────────────────────────────────────┘
+
+A policy hit indicates a match requiring review—not necessarily a confirmed violation.
+
+CLass diagram
+
+classDiagram
+    class Policy {
+        +int id
+        +String keyword
+        +Set~String~ users
+        +boolean enabled
+    }
+
+    class TeamsMessage {
+        +String id
+        +String senderId
+        +String content
+    }
+
+    class PolicyHit {
+        +int policyId
+        +TeamsMessage message
+        +String matchedKeyword
+    }
+
+    class ComplianceService {
+        -Map~Integer, Policy~ policies
+        -List~PolicyHit~ hits
+        -int nextId
+        +createPolicy(String keyword, Set~String~ users) int
+        +updatePolicy(int id, String keyword, Set~String~ users, boolean enabled) void
+        +deletePolicy(int id) void
+        +evaluate(TeamsMessage message) List~PolicyHit~
+        +getHits() List~PolicyHit~
+        -getPolicy(int id) Policy
+        -validateRule(String keyword, Set~String~ users) void
+    }
+
+    ComplianceService "1" *-- "0..*" Policy : manages
+    ComplianceService "1" *-- "0..*" PolicyHit : stores
+    ComplianceService ..> TeamsMessage : evaluates
+    PolicyHit "0..*" --> "1" TeamsMessage : retains
+    PolicyHit ..> Policy : references by ID
+
+•  *--  Composition: the service owns its stored policies and hits.
+•  -->  Association: each hit retains one complete message; one message can cause multiple hits.
+
+3. Design pattern used
+
+Service Layer:  ComplianceService  contains the business operations, while the entities hold data.
+
+Singleton is unnecessary: there is no requirement to enforce one service instance. No Factory, Observer, or Strategy is needed for this scope.
+
+Plain classes instead of records: they are sufficient and make policy updates easy to explain. Nested classes only keep the example in one runnable file.
+
+4. Complete Java code
+
+Save as  Main.java , using Java 11 or newer. Comments explain meaningful declarations and operations.
+
+import java.util.*; // Provides collections used for policies and hits.
+
+public class Main { // Contains the complete runnable example.
+
+    static class Policy { // Defines a compliance rule.
+        final int id; // Identifies the policy; never changes.
+        String keyword; // Text to search for in messages.
+        Set<String> users; // Senders covered by this policy.
+        boolean enabled; // Controls whether the policy is evaluated.
+
+        Policy(int id, String keyword, Set<String> users) {
+            this.id = id; // Assign the policy ID.
+            this.keyword = keyword; // Assign the matching keyword.
+            this.users = new HashSet<>(users); // Copy the supplied user scope.
+            this.enabled = true; // Enable new policies by default.
+        }
+    }
+
+    static class TeamsMessage { // Represents a message being evaluated.
+        final String id; // Identifies the message.
+        final String senderId; // Identifies the sender.
+        final String content; // Stores the complete message content.
+
+        TeamsMessage(String id, String senderId, String content) {
+            this.id = id; // Assign the message ID.
+            this.senderId = senderId; // Assign the sender ID.
+            this.content = content; // Preserve the original message content.
+        }
+    }
+
+    static class PolicyHit { // Records a policy match for review.
+        final int policyId; // Identifies the matching policy.
+        final TeamsMessage message; // Retains the complete matching message.
+        final String matchedKeyword; // Preserves the keyword at match time.
+
+        PolicyHit(int policyId, TeamsMessage message, String keyword) {
+            this.policyId = policyId; // Store the policy reference.
+            this.message = message; // Store the message that caused the hit.
+            this.matchedKeyword = keyword; // Snapshot the matched keyword.
+        }
+    }
+
+    static class ComplianceService { // Implements the business operations.
+        private final Map<Integer, Policy> policies = new HashMap<>(); // Policy storage.
+        private final List<PolicyHit> hits = new ArrayList<>(); // Historical hit storage.
+        private int nextId = 1; // Generates IDs for this in-memory example.
+
+        public int createPolicy(String keyword, Set<String> users) {
+            validateRule(keyword, users); // Reject invalid configuration.
+            int id = nextId++; // Generate a new policy ID.
+            Policy policy = new Policy(id, keyword, users); // Build the policy.
+            policies.put(id, policy); // Save it in memory.
+            return id; // Return its ID for later operations.
+        }
+
+        public void updatePolicy(
+                int id, String keyword, Set<String> users, boolean enabled) {
+            Policy policy = getPolicy(id); // Find the policy or fail explicitly.
+            validateRule(keyword, users); // Validate before making changes.
+            policy.keyword = keyword; // Replace the matching keyword.
+            policy.users = new HashSet<>(users); // Replace the user scope.
+            policy.enabled = enabled; // Enable or disable future matching.
+        }
+
+        public void deletePolicy(int id) {
+            getPolicy(id); // Verify that the policy exists.
+            policies.remove(id); // Remove the policy; retain historical hits.
+        }
+
+        public List<PolicyHit> evaluate(TeamsMessage message) {
+            List<PolicyHit> matches = new ArrayList<>(); // Results for this message.
+            String text = message.content.toLowerCase(); // Normalize demo text.
+
+            for (Policy policy : policies.values()) { // Examine each policy.
+                if (!policy.enabled) { // Disabled policies must not match.
+                    continue; // Move to the next policy.
+                }
+
+                if (!policy.users.contains(message.senderId)) { // Check sender scope.
+                    continue; // Skip messages from users outside the scope.
+                }
+
+                String keyword = policy.keyword.toLowerCase(); // Normalize the rule.
+
+                if (text.contains(keyword)) { // Check for a keyword substring.
+                    PolicyHit hit = new PolicyHit(
+                            policy.id, message, policy.keyword); // Retain full evidence.
+                    matches.add(hit); // Create one hit per matching policy.
+                }
+            }
+
+            hits.addAll(matches); // Preserve the new hits in history.
+            return matches; // Return only hits for this evaluation.
+        }
+
+        public List<PolicyHit> getHits() {
+            return new ArrayList<>(hits); // Return a copy of the historical list.
+        }
+
+        private Policy getPolicy(int id) {
+            Policy policy = policies.get(id); // Look up the policy by ID.
+
+            if (policy == null) { // Detect an unknown ID.
+                throw new IllegalArgumentException("Policy not found: " + id);
+            }
+
+            return policy; // Return the existing policy.
+        }
+
+        private void validateRule(String keyword, Set<String> users) {
+            if (keyword == null || keyword.isBlank()) { // Require a keyword.
+                throw new IllegalArgumentException("Keyword is required");
+            }
+
+            if (users == null || users.isEmpty()) { // Require scoped users.
+                throw new IllegalArgumentException("Users are required");
+            }
+        }
+    }
+
+    public static void main(String[] args) { // Demonstrates the full lifecycle.
+        ComplianceService service = new ComplianceService(); // Create the service.
+
+        int policyId = service.createPolicy(
+                "confidential", Set.of("alice")); // Create a policy for Alice.
+
+        TeamsMessage first = new TeamsMessage(
+                "m1", "alice", "This document is confidential"); // Matching message.
+
+        System.out.println("Initial hits: "
+                + service.evaluate(first).size()); // Prints 1.
+
+        service.updatePolicy(
+                policyId, "secret", Set.of("alice"), true); // Change the keyword.
+
+        TeamsMessage second = new TeamsMessage(
+                "m2", "alice", "Please keep this secret"); // Matches the updated rule.
+
+        System.out.println("Hits after update: "
+                + service.evaluate(second).size()); // Prints 1.
+
+        service.deletePolicy(policyId); // Stop future evaluation for this policy.
+
+        TeamsMessage third = new TeamsMessage(
+                "m3", "alice", "Another secret"); // Arrives after policy deletion.
+
+        System.out.println("Hits after deletion: "
+                + service.evaluate(third).size()); // Prints 0.
+
+        System.out.println("Historical hits: "
+                + service.getHits().size()); // Prints 2; previous hits remain.
+
+        for (PolicyHit hit : service.getHits()) { // Display historical evidence.
+            System.out.println(); // Separate the hit details.
+            System.out.println("Policy ID: " + hit.policyId); // Matching policy.
+            System.out.println("Keyword: " + hit.matchedKeyword); // Original rule.
+            System.out.println("Message ID: " + hit.message.id); // Matching message.
+            System.out.println("Sender: " + hit.message.senderId); // Message sender.
+            System.out.println("Content: " + hit.message.content); // Complete content.
+        }
+    }
+}
+
+5. Expected output
+
+Initial hits: 1
+Hits after update: 1
+Hits after deletion: 0
+Historical hits: 2
+
+Policy ID: 1
+Keyword: confidential
+Message ID: m1
+Sender: alice
+Content: This document is confidential
+
+Policy ID: 1
+Keyword: secret
+Message ID: m2
+Sender: alice
+Content: Please keep this secret
