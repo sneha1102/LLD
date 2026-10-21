@@ -1,0 +1,464 @@
+Problem: Design a music player like Spotify where users can search songs, create playlists, play, pause, resume, and skip songs.
+
+1. Functional Requirements
+
+1. Add and search songs by title.
+2. Create playlists and add songs.
+3. Play a song or an entire playlist.
+4. Pause and resume playback.
+5. Play the next or previous song.
+6. Support shuffle and repeat mode.
+7. Display the currently playing song.
+
+
+2. Non-Functional Requirements
+- Low latency: Song switching should be fast.
+- Extensibility: Easy to add new playback modes.
+- Maintainability: Separate playlist and playback logic.
+- Consistency: Only one song should be active in a player at a time.
+Scope: No actual audio streaming, database, subscription, or recommendation engine.
+
+
+3. Core Entities
+
+Class	Responsibility
+
+Song	Stores song details
+Playlist	Contains multiple songs
+MusicLibrary	Stores and searches songs
+MusicPlayer	Controls playback
+PlayerState	Enum for PLAYING, PAUSED, STOPPED
+Main	Demonstrates the system
+
+
+4. Class Relationships
+
+Relationship	Type	Explanation
+
+Playlist → Song	Aggregation (1:N)	A playlist contains songs; songs can exist independently and belong to multiple playlists
+MusicLibrary → Song	Aggregation (1:N)	Library stores songs
+MusicPlayer → Playlist	Association (N:1)	A player can play a selected playlist
+MusicPlayer → Song	Association	Player tracks the current song
+MusicPlayer → PlayerState	HAS-A	Player maintains its playback state
+
+5. Design Patterns
+Singleton Pattern (optional):
+
+We can use one MusicPlayer instance for one user's playback session.
+
+However, Spotify has many users, so we should not use one global Singleton across all users. Each user or playback session should have its own player.
+
+State Pattern (simplified):
+
+We use a PlayerState enum to maintain PLAYING, PAUSED, and STOPPED states.
+
+We do not need separate state classes because our playback behavior is simple.
+
+6. UML Class Diagram
++-----------------------------------------+
+|                  Song                   |
++-----------------------------------------+
+| - id: int                               |
+| - title: String                         |
+| - artist: String                        |
+| - duration: int                         |
++-----------------------------------------+
+| + Song(id: int, title: String,           |
+|        artist: String, duration: int)    |
+| // Initialize song details              |
++-----------------------------------------+
+
++-----------------------------------------+
+|                 Playlist                |
++-----------------------------------------+
+| - name: String                          |
+| - songs: List<Song>                     |
++-----------------------------------------+
+| + Playlist(name: String)                |
+| // Create a playlist                    |
+|                                         |
+| + addSong(song: Song): void             |
+| // Add song to playlist                 |
+|                                         |
+| + removeSong(song: Song): void          |
+| // Remove song from playlist            |
++-----------------------------------------+
+
++-----------------------------------------+
+|               MusicLibrary              |
++-----------------------------------------+
+| - songs: List<Song>                     |
++-----------------------------------------+
+| + addSong(song: Song): void             |
+| // Add song to library                  |
+|                                         |
+| + search(title: String): List<Song>     |
+| // Search songs by title                |
++-----------------------------------------+
+
++-----------------------------------------+
+|           <<enum>> PlayerState          |
++-----------------------------------------+
+| PLAYING                                 |
+| PAUSED                                  |
+| STOPPED                                 |
++-----------------------------------------+
+
++-----------------------------------------+
+|                MusicPlayer              |
++-----------------------------------------+
+| - playlist: Playlist                    |
+| - currentIndex: int                     |
+| - state: PlayerState                    |
+| - shuffle: boolean                      |
+| - repeat: boolean                       |
++-----------------------------------------+
+| + loadPlaylist(p: Playlist): void       |
+| // Select playlist for playback         |
+|                                         |
+| + play(): void                          |
+| // Start or resume playback             |
+|                                         |
+| + pause(): void                         |
+| // Pause current song                   |
+|                                         |
+| + next(): void                          |
+| // Play next song                       |
+|                                         |
+| + previous(): void                      |
+| // Play previous song                   |
+|                                         |
+| + setShuffle(value: boolean): void      |
+| // Enable or disable shuffle            |
+|                                         |
+| + setRepeat(value: boolean): void       |
+| // Enable or disable repeat             |
+|                                         |
+| + showCurrentSong(): void               |
+| // Display current song and state       |
++-----------------------------------------+
+
+
+Relationship diagram
+
+MusicLibrary 1 -------- * Song
+                           ^
+                           | contains
+                           |
+Playlist 1 ------------- * Song
+    ^
+    |
+    | plays
+    |
+MusicPlayer
+    |
+    | maintains
+    v
+PlayerState
+
+
+7. Complete Flow
+
+1. Add songs to MusicLibrary.
+2. Create a playlist and add songs.
+3. Load the playlist into MusicPlayer.
+4. Set currentIndex = 0 to select the first song.
+5. play() starts or resumes playback.
+6. pause() changes the state to PAUSED.
+7. next() and previous() update the song index.
+8. Shuffle selects a random next song.
+9. Repeat allows playback to restart after the last song.
+8. Complete Runnable Java Code
+
+
+Single file: Main.java
+
+import java.util.*; // Collections and Random
+
+// Represents a single song
+class Song {
+
+    int id; // Unique song ID
+    String title; // Song name
+    String artist; // Artist name
+    int duration; // Duration in seconds
+
+    // Initialize song details
+    Song(int id, String title, String artist, int duration) {
+        this.id = id; // Store ID
+        this.title = title; // Store title
+        this.artist = artist; // Store artist
+        this.duration = duration; // Store duration
+    }
+}
+
+// Represents a playlist containing songs
+class Playlist {
+
+    String name; // Playlist name
+
+    // Songs are stored in insertion order
+    List<Song> songs = new ArrayList<>();
+
+    // Create a new playlist
+    Playlist(String name) {
+        this.name = name; // Store playlist name
+    }
+
+    // Add a song to playlist
+    void addSong(Song song) {
+        if (song != null) { // Ignore invalid song
+            songs.add(song); // Add to playlist
+        }
+    }
+
+    // Remove a song from playlist
+    void removeSong(Song song) {
+        songs.remove(song); // Remove first matching song
+    }
+}
+
+// Stores all available songs
+class MusicLibrary {
+
+    // Maintain song catalog
+    List<Song> songs = new ArrayList<>();
+
+    // Add song to library
+    void addSong(Song song) {
+        if (song != null) { // Validate song
+            songs.add(song); // Store song
+        }
+    }
+
+    // Search songs by title
+    List<Song> search(String title) {
+
+        // Store matching songs
+        List<Song> result = new ArrayList<>();
+
+        // Handle invalid search input
+        if (title == null) return result;
+
+        // Check each song in library
+        for (Song song : songs) {
+
+            // Case-insensitive partial title matching
+            if (song.title.toLowerCase()
+                    .contains(title.toLowerCase())) {
+
+                result.add(song); // Save matching song
+            }
+        }
+
+        return result; // Return search results
+    }
+}
+
+// Playback states
+enum PlayerState {
+    PLAYING, PAUSED, STOPPED
+}
+
+// Handles playback operations
+class MusicPlayer {
+
+    Playlist playlist; // Currently selected playlist
+    int currentIndex = 0; // Current song position
+
+    // Initially nothing is playing
+    PlayerState state = PlayerState.STOPPED;
+
+    boolean shuffle = false; // Shuffle disabled initially
+    boolean repeat = false; // Repeat disabled initially
+
+    Random random = new Random(); // Random song selection
+
+    // Load a playlist into the player
+    void loadPlaylist(Playlist playlist) {
+
+        this.playlist = playlist; // Store selected playlist
+        currentIndex = 0; // Start from first song
+        state = PlayerState.STOPPED; // Reset playback
+    }
+
+    // Start or resume playback
+    void play() {
+
+        // Check whether playlist has songs
+        if (playlist == null || playlist.songs.isEmpty()) {
+            System.out.println("No songs available");
+            return;
+        }
+
+        // Change player state
+        state = PlayerState.PLAYING;
+
+        // Display current song
+        showCurrentSong();
+    }
+
+    // Pause currently playing song
+    void pause() {
+
+        // Pause only if music is playing
+        if (state == PlayerState.PLAYING) {
+            state = PlayerState.PAUSED; // Update state
+            System.out.println("Music paused");
+        }
+    }
+
+    // Play next song
+    void next() {
+
+        // Handle missing or empty playlist
+        if (playlist == null || playlist.songs.isEmpty()) {
+            System.out.println("No songs available");
+            return;
+        }
+
+        // Get total number of songs
+        int size = playlist.songs.size();
+
+        if (shuffle && size > 1) {
+
+            // Select a different random song
+            int nextIndex;
+
+            do {
+                nextIndex = random.nextInt(size);
+            } while (nextIndex == currentIndex);
+
+            currentIndex = nextIndex; // Update current song
+
+        } else if (currentIndex < size - 1) {
+
+            currentIndex++; // Move to next song
+
+        } else if (repeat) {
+
+            currentIndex = 0; // Restart playlist
+
+        } else {
+
+            state = PlayerState.STOPPED; // End playback
+            System.out.println("Playlist finished");
+            return;
+        }
+
+        play(); // Start selected song
+    }
+
+    // Play previous song
+    void previous() {
+
+        // Handle missing or empty playlist
+        if (playlist == null || playlist.songs.isEmpty()) {
+            System.out.println("No songs available");
+            return;
+        }
+
+        // Move backward if possible
+        if (currentIndex > 0) {
+            currentIndex--; // Previous song
+        } else if (repeat) {
+            currentIndex = playlist.songs.size() - 1;
+        }
+
+        play(); // Play selected song
+    }
+
+    // Enable or disable shuffle
+    void setShuffle(boolean value) {
+        shuffle = value; // Update shuffle mode
+    }
+
+    // Enable or disable repeat
+    void setRepeat(boolean value) {
+        repeat = value; // Update repeat mode
+    }
+
+    // Display current song details
+    void showCurrentSong() {
+
+        // Ensure playlist exists
+        if (playlist == null || playlist.songs.isEmpty()) {
+            System.out.println("No song selected");
+            return;
+        }
+
+        // Get currently selected song
+        Song song = playlist.songs.get(currentIndex);
+
+        // Display song and playback state
+        System.out.println(
+                state + ": " + song.title +
+                " - " + song.artist);
+    }
+}
+
+// Main class for demonstration
+public class Main {
+
+    public static void main(String[] args) {
+
+        // Create songs
+        Song s1 = new Song(1, "Shape of You", "Ed Sheeran", 240);
+        Song s2 = new Song(2, "Believer", "Imagine Dragons", 210);
+        Song s3 = new Song(3, "Perfect", "Ed Sheeran", 260);
+
+        // Create music library
+        MusicLibrary library = new MusicLibrary();
+
+        // Add songs to library
+        library.addSong(s1);
+        library.addSong(s2);
+        library.addSong(s3);
+
+        // Search for a song
+        System.out.println("Search results:");
+
+        // Display matching songs
+        for (Song song : library.search("Perfect")) {
+            System.out.println(song.title);
+        }
+
+        // Create playlist
+        Playlist playlist = new Playlist("My Favorites");
+
+        // Add songs to playlist
+        playlist.addSong(s1);
+        playlist.addSong(s2);
+        playlist.addSong(s3);
+
+        // Create music player
+        MusicPlayer player = new MusicPlayer();
+
+        // Load playlist
+        player.loadPlaylist(playlist);
+
+        // Play first song
+        player.play();
+
+        // Pause playback
+        player.pause();
+
+        // Resume playback
+        player.play();
+
+        // Play next song
+        player.next();
+
+        // Play previous song
+        player.previous();
+
+        // Enable repeat
+        player.setRepeat(true);
+
+        // Enable shuffle
+        player.setShuffle(true);
+
+        // Play random next song
+        player.next();
+    }
+}
