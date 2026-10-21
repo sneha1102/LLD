@@ -1,0 +1,414 @@
+Problem: Design a Windows notification system where different applications like WhatsApp, Outlook, Teams, and Chrome can generate notifications, and Windows displays them in a common Notification Center.Problem: Design a Windows notification system where different applications like WhatsApp, Outlook, Teams, and Chrome can generate notifications, and Windows displays them in a common Notification Center.
+
+
+1. Functional Requirements
+1. Multiple applications can generate notifications.
+2. Each notification contains an ID, application name, title, message, and timestamp.
+3. Display incoming notifications as popups.
+4. Store notifications in a common Notification Center.
+5. Mark notifications as read.
+6. Dismiss individual notifications.
+7. Support enabling or disabling notifications for an application.
+2. Non-Functional Requirements
+- Thread safety: Multiple applications can generate notifications simultaneously.
+- Extensibility: New applications can send notifications without changing the manager.
+- Performance: Notifications should be processed quickly.
+- Reliability: Notifications should be retained in the center until dismissed.
+- Maintainability: Separate notification management from display logic.
+Assumption: We will simulate Windows popups using System.out.println(). No actual Windows API or database integration is required.
+3. Core Entities
+Class	Responsibility
+Notification	Stores notification details
+Application	Represents an application generating notifications
+NotificationListener	Interface for receiving new notifications
+NotificationDisplay	Displays notification popups
+NotificationManager	Central manager for notifications
+Main	Demonstrates the system
+4. Class Relationships
+Relationship	Type	Explanation
+Application → NotificationManager	Association	Multiple applications use one manager
+Application → Notification	Association	One application can generate many notifications
+NotificationManager → Notification	Aggregation (1:N)	Manager stores multiple notifications
+NotificationManager → NotificationListener	Association (1:N)	Manager notifies registered listeners
+NotificationDisplay → NotificationListener	Implements	Display provides notification behavior
+5. Design Patterns
+1. Observer Pattern – Main Pattern
+NotificationManager is the subject, and NotificationDisplay is the observer. Whenever a new notification arrives, the manager notifies the display automatically.
+
+2. Singleton Pattern
+We use Singleton for NotificationManager because we want one shared notification center across all applications within our process.
+
+This is suitable for our simple in-memory implementation.
+6. UML Class Diagram
++----------------------------------------+
+|             Notification               |
++----------------------------------------+
+| id: int                                |
+| appName: String                        |
+| title: String                          |
+| message: String                        |
+| timestamp: LocalDateTime               |
+| isRead: boolean                        |
++----------------------------------------+
+| Notification(id, appName, title, msg)   |
+| // Initialize notification details     |
++----------------------------------------+
+
+
++----------------------------------------+
+|             Application                |
++----------------------------------------+
+| name: String                           |
+| manager: NotificationManager           |
++----------------------------------------+
+| Application(name: String)              |
+| // Initialize application              |
+|                                        |
+| sendNotification(title: String,        |
+|                  message: String): void|
+| // Send notification to central manager|
++----------------------------------------+
+
+
++----------------------------------------+
+|      <<interface>> NotificationListener|
++----------------------------------------+
+| onNotification(n: Notification): void  |
+| // Handle newly generated notification |
++----------------------------------------+
+                    ^
+                    | implements
+                    |
++----------------------------------------+
+|          NotificationDisplay           |
++----------------------------------------+
+| onNotification(n: Notification): void  |
+| // Display notification popup          |
++----------------------------------------+
+
+
++------------------------------------------------+
+|       NotificationManager <<Singleton>>        |
++------------------------------------------------+
+| - instance: static final NotificationManager   |
+| - notifications: Map<Integer, Notification>    |
+| - listeners: List<NotificationListener>        |
+| - disabledApps: Set<String>                    |
+| - nextId: int                                  |
++------------------------------------------------+
+| - NotificationManager()                        |
+| // Prevent external object creation            |
+|                                                |
+| + getInstance(): NotificationManager           |
+| // Return shared manager                       |
+|                                                |
+| + addListener(l: NotificationListener): void   |
+| // Register display observer                   |
+|                                                |
+| + addNotification(app: String, title: String,   |
+|                   message: String): void       |
+| // Save notification and notify listeners      |
+|                                                |
+| + showAll(): void                              |
+| // Display notification history                |
+|                                                |
+| + markAsRead(id: int): void                    |
+| // Mark notification as read                   |
+|                                                |
+| + dismiss(id: int): void                       |
+| // Remove notification from center             |
+|                                                |
+| + disableApp(app: String): void                |
+| // Block notifications from an application     |
+|                                                |
+| + enableApp(app: String): void                 |
+| // Allow notifications from an application     |
++------------------------------------------------+
+
+
+Relationship Diagram
+
+WhatsApp       Outlook        Chrome
+    |              |             |
+    +--------------+-------------+
+                   |
+                   | sends notification
+                   v
+          NotificationManager
+             <<Singleton>>
+                   |
+          stores Notifications
+                   |
+                   | notifies
+                   v
+          NotificationListener
+              <<interface>>
+                   ^
+                   | implements
+                   |
+          NotificationDisplay
+                   |
+                   v
+             Windows Popup
+
+
+7. Complete Flow
+1. Applications get the shared NotificationManager instance.
+2. An application generates a notification.
+3. Manager checks whether notifications are enabled for that application.
+4. Manager creates a unique notification ID and stores it.
+5. Manager notifies registered observers.
+6. NotificationDisplay displays a popup.
+7. User can view history, mark notifications as read, or dismiss them.
+8. Complete Runnable Java Code
+Single file: Main.java
+
+import java.util.*; // Collections
+import java.time.*; // Date and time
+
+// Stores details of one notification
+class Notification {
+
+    int id; // Unique notification ID
+    String appName; // Source application
+    String title; // Notification heading
+    String message; // Notification content
+    LocalDateTime timestamp; // Creation time
+    boolean isRead; // Read status
+
+    // Initialize notification
+    Notification(int id, String appName,
+                 String title, String message) {
+
+        this.id = id; // Store unique ID
+        this.appName = appName; // Store application
+        this.title = title; // Store heading
+        this.message = message; // Store content
+        this.timestamp = LocalDateTime.now(); // Set time
+        this.isRead = false; // Initially unread
+    }
+}
+
+// Observer interface for notification events
+interface NotificationListener {
+
+    // Called whenever a new notification arrives
+    void onNotification(Notification notification);
+}
+
+// Displays Windows notification popup
+class NotificationDisplay implements NotificationListener {
+
+    @Override
+    public void onNotification(Notification n) {
+
+        // Simulate Windows popup display
+        System.out.println(
+            "POPUP [" + n.appName + "] " +
+            n.title + ": " + n.message
+        );
+    }
+}
+
+// Central manager shared by all applications
+class NotificationManager {
+
+    // Create one shared manager instance
+    private static final NotificationManager instance =
+            new NotificationManager();
+
+    // Store notifications by unique ID
+    private Map<Integer, Notification> notifications =
+            new LinkedHashMap<>();
+
+    // Store observers interested in notifications
+    private List<NotificationListener> listeners =
+            new ArrayList<>();
+
+    // Applications whose notifications are disabled
+    private Set<String> disabledApps = new HashSet<>();
+
+    // Generate unique notification IDs
+    private int nextId = 1;
+
+    // Private constructor for Singleton
+    private NotificationManager() {}
+
+    // Return the shared manager
+    public static NotificationManager getInstance() {
+        return instance;
+    }
+
+    // Register an observer
+    public synchronized void addListener(
+            NotificationListener listener) {
+
+        // Avoid duplicate observer registration
+        if (listener != null && !listeners.contains(listener)) {
+            listeners.add(listener);
+        }
+    }
+
+    // Receive notification from any application
+    public synchronized void addNotification(
+            String app, String title, String message) {
+
+        // Validate input
+        if (app == null || app.isEmpty() ||
+            title == null || message == null) {
+            System.out.println("Invalid notification");
+            return;
+        }
+
+        // Check whether application is blocked
+        if (disabledApps.contains(app)) {
+            System.out.println(app + " notifications disabled");
+            return;
+        }
+
+        // Create new notification with unique ID
+        Notification notification = new Notification(
+                nextId++, app, title, message);
+
+        // Store notification in history
+        notifications.put(notification.id, notification);
+
+        // Notify all registered observers
+        for (NotificationListener listener : listeners) {
+            listener.onNotification(notification);
+        }
+    }
+
+    // Display all stored notifications
+    public synchronized void showAll() {
+
+        // Print heading
+        System.out.println("\nNotification Center:");
+
+        // Handle empty notification history
+        if (notifications.isEmpty()) {
+            System.out.println("No notifications");
+            return;
+        }
+
+        // Display each stored notification
+        for (Notification n : notifications.values()) {
+            System.out.println(
+                n.id + " | " + n.appName +
+                " | " + n.title +
+                " | " + (n.isRead ? "Read" : "Unread")
+            );
+        }
+    }
+
+    // Mark notification as read
+    public synchronized void markAsRead(int id) {
+
+        // Find notification by ID
+        Notification n = notifications.get(id);
+
+        // Update status if notification exists
+        if (n != null) {
+            n.isRead = true;
+            System.out.println("Marked as read: " + id);
+        }
+    }
+
+    // Remove notification from center
+    public synchronized void dismiss(int id) {
+
+        // Remove notification using its ID
+        Notification removed = notifications.remove(id);
+
+        // Print result
+        System.out.println(removed != null ?
+                "Dismissed: " + id :
+                "Notification not found");
+    }
+
+    // Disable notifications from one application
+    public synchronized void disableApp(String app) {
+
+        // Add application to blocked set
+        disabledApps.add(app);
+    }
+
+    // Enable notifications from one application
+    public synchronized void enableApp(String app) {
+
+        // Remove application from blocked set
+        disabledApps.remove(app);
+    }
+}
+
+// Represents an application generating notifications
+class Application {
+
+    String name; // Application name
+
+    // Get shared notification manager
+    NotificationManager manager =
+            NotificationManager.getInstance();
+
+    // Initialize application
+    Application(String name) {
+        this.name = name; // Store application name
+    }
+
+    // Generate notification
+    void sendNotification(String title, String message) {
+
+        // Send notification to central manager
+        manager.addNotification(name, title, message);
+    }
+}
+
+// Demonstrate notification system
+public class Main {
+
+    public static void main(String[] args) {
+
+        // Get central notification manager
+        NotificationManager manager =
+                NotificationManager.getInstance();
+
+        // Register popup display observer
+        manager.addListener(new NotificationDisplay());
+
+        // Create different applications
+        Application whatsapp = new Application("WhatsApp");
+        Application outlook = new Application("Outlook");
+        Application chrome = new Application("Chrome");
+
+        // WhatsApp generates notification
+        whatsapp.sendNotification(
+                "New Message", "Hello from Rahul");
+
+        // Outlook generates notification
+        outlook.sendNotification(
+                "New Email", "Meeting at 3 PM");
+
+        // Chrome generates notification
+        chrome.sendNotification(
+                "Download", "File downloaded");
+
+        // Display notification history
+        manager.showAll();
+
+        // Mark WhatsApp notification as read
+        manager.markAsRead(1);
+
+        // Dismiss Outlook notification
+        manager.dismiss(2);
+
+        // Disable Chrome notifications
+        manager.disableApp("Chrome");
+
+        // This notification will be blocked
+        chrome.sendNotification(
+                "Alert", "New website update");
+
+        // Show updated notification center
+        manager.showAll();
+    }
+}
