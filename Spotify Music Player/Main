@@ -48,12 +48,6 @@ We can use one MusicPlayer instance for one user's playback session.
 
 However, Spotify has many users, so we should not use one global Singleton across all users. Each user or playback session should have its own player.
 
-State Pattern (simplified):
-
-We use a PlayerState enum to maintain PLAYING, PAUSED, and STOPPED states.
-
-We do not need separate state classes because our playback behavior is simple.
-
 6. UML Class Diagram
 +-----------------------------------------+
 |                  Song                   |
